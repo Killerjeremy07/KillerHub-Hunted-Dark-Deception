@@ -1,0 +1,1133 @@
+wait("0.2")
+-- ==============================================================================
+-- HUNTEDHUB V42 - THE CLEAN EDITION (CROWN ICON, NO EMOJIS, PERFECT EXECUTION)
+-- ==============================================================================
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+
+-- ==========================================
+-- 1. ANTI-KICK BYPASS
+-- ==========================================
+pcall(function()
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        if not checkcaller() and (method == "Kick" or method == "kick") then 
+            return nil 
+        end
+        return oldNamecall(self, ...)
+    end)
+end)
+
+-- ==========================================
+-- 2. LIGHTING SNAPSHOT SYSTEM (FOR RESTORING)
+-- ==========================================
+local origLighting = {
+    Ambient = Lighting.Ambient,
+    OutdoorAmbient = Lighting.OutdoorAmbient,
+    ColorShift_Bottom = Lighting.ColorShift_Bottom,
+    ColorShift_Top = Lighting.ColorShift_Top,
+    Brightness = Lighting.Brightness,
+    FogEnd = Lighting.FogEnd,
+    FogStart = Lighting.FogStart,
+    GlobalShadows = Lighting.GlobalShadows,
+    ClockTime = Lighting.ClockTime
+}
+
+local origEffects = {}
+pcall(function()
+    for _, v in pairs(Lighting:GetDescendants()) do
+        if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") or v:IsA("SunRaysEffect") then
+            origEffects[v] = v.Enabled
+        end
+    end
+end)
+
+local function restoreLighting()
+    pcall(function()
+        Lighting.Ambient = origLighting.Ambient
+        Lighting.OutdoorAmbient = origLighting.OutdoorAmbient
+        Lighting.ColorShift_Bottom = origLighting.ColorShift_Bottom
+        Lighting.ColorShift_Top = origLighting.ColorShift_Top
+        Lighting.Brightness = origLighting.Brightness
+        Lighting.FogEnd = origLighting.FogEnd
+        Lighting.FogStart = origLighting.FogStart
+        Lighting.GlobalShadows = origLighting.GlobalShadows
+        Lighting.ClockTime = origLighting.ClockTime
+        
+        for effect, enabled in pairs(origEffects) do
+            if effect and effect.Parent then
+                effect.Enabled = enabled
+            end
+        end
+    end)
+end
+
+-- ==========================================
+-- 3. LOAD UI LIBRARY
+-- ==========================================
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+
+-- Icoon is nu een Kroon en veilig als string verwerkt
+local Window = Library:CreateWindow({ 
+    Title = "HuntedHub", 
+    Footer = "KillerHub Hunted V1.0 Official Release - Created By Killerjeremy07", 
+    Icon = "rbxassetid://10709768631" 
+})
+
+local Tabs = { 
+    Main = Window:AddTab("God Farm", "swords"), 
+    Monsters = Window:AddTab("Survival", "shield"),
+    Visuals = Window:AddTab("Visuals", "eye"), 
+    Movement = Window:AddTab("Movement", "car"),
+    Players = Window:AddTab("Players", "users"),
+    Settings = Window:AddTab("Settings", "settings") 
+}
+
+Library:Notify("HuntedHub V42 Loaded! Clean UI & Crash Fixed.", 4)
+
+local C = {
+    CustomShardAmount = 5,
+    TouchedShards = {},
+    AutoEvade = false, 
+    EvadeTrigger = 30, 
+    EvadeHeight = 100, 
+    MicroHitbox = false, 
+    TopDownCam = false, 
+    UnlockCam = false, 
+    FreezeMonsters = false,
+    MonsterESP = false, 
+    ShardESP = false, 
+    FullBright = false, 
+    BloodMoon = false, 
+    DiscoLight = false, 
+    XRay = false, 
+    Breadcrumbs = false,
+    SpeedEnabled = false, 
+    SpeedMulti = 1.5, 
+    CFrameWalk = false, 
+    CFrameSpeed = 40,   
+    NoClip = false, 
+    InfJump = false, 
+    AirWalk = false,
+    Fly = false, 
+    FlySpeed = 1 
+}
+
+-- ==========================================
+-- 4. EXTREME MULTI-LEVEL CACHE ENGINE
+-- ==========================================
+local Cache = { 
+    Shards = {}, 
+    Monsters = {}, 
+    Exits = {}, 
+    Rings = {}, 
+    Prompts = {}, 
+    Portals = {} 
+}
+
+local function isMonster(obj)
+    if not obj or not obj.Parent then 
+        return false 
+    end
+    
+    if obj == player.Character then 
+        return false 
+    end
+    
+    if Players:GetPlayerFromCharacter(obj) then 
+        return false 
+    end
+
+    if obj:IsA("Model") then
+        local root = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso")
+        if root then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            local name = string.lower(obj.Name)
+            local parentName = string.lower(obj.Parent.Name)
+            
+            local isSus = name:match("bot") or name:match("killer") or name:match("enemy") or name:match("monster") or name:match("entity") or name:match("chaser") or name:match("slender") or name:match("hunter") or name:match("figure") or name:match("dummy") or name:match("npc") or name:match("nextbot")
+            local isParentSus = parentName:match("monster") or parentName:match("killer") or parentName:match("enemy") or parentName:match("entity")
+            
+            if hum or isSus or isParentSus then
+                return true
+            end
+            
+            -- Brute force check: Heeft dit model scripts die ons kunnen doden?
+            if obj:FindFirstChild("Damage", true) or obj:FindFirstChild("Kill", true) or obj:FindFirstChild("TouchInterest", true) then
+                return true
+            end
+        end
+    end
+    
+    return false
+end
+
+local function isCollectible(obj)
+    if not obj or not obj.Parent then 
+        return false 
+    end
+    
+    if obj:IsDescendantOf(player.Character) then 
+        return false 
+    end
+
+    local name = string.lower(obj.Name)
+    if name:match("shard") or name:match("crystal") or name:match("gem") or name:match("coin") or name:match("orb") or name:match("collect") then 
+        return true 
+    end
+    
+    if obj:IsA("BasePart") and obj:FindFirstChildOfClass("TouchTransmitter") and obj.Size.Magnitude < 15 then 
+        if name:match("hitbox") or name:match("kill") or name:match("damage") then 
+            return false 
+        end
+        return true 
+    end
+    
+    return false
+end
+
+local function isPortal(obj)
+    if not obj or not obj.Parent then 
+        return false 
+    end
+    
+    local name = string.lower(obj.Name)
+    if name:match("exit") or name:match("escape") or name:match("door") or name:match("finish") or name:match("end") then 
+        return true 
+    end
+    
+    if name:match("ring") or name:match("checkpoint") or name:match("portal") or name:match("next") or name:match("zone") then 
+        return true 
+    end
+    
+    if obj:IsA("BasePart") and obj.Material == Enum.Material.Neon and obj.Size.Magnitude > 10 and not name:match("shard") then 
+        return true 
+    end
+    
+    return false
+end
+
+local function getSafePos(obj)
+    if obj:IsA("Model") then 
+        if obj.PrimaryPart then 
+            return obj.PrimaryPart.Position 
+        end 
+        return obj:GetPivot().Position
+    elseif obj:IsA("BasePart") then 
+        return obj.Position 
+    end 
+    return nil
+end
+
+local function fireTouch(hrp, obj)
+    if not obj or not obj.Parent then return end
+    
+    local part = obj
+    if obj:IsA("Model") then 
+        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") 
+    end
+    
+    if part and part:IsA("BasePart") then 
+        firetouchinterest(hrp, part, 0) 
+        firetouchinterest(hrp, part, 1) 
+    end
+end
+
+task.spawn(function()
+    while task.wait(1.0) do
+        local tShards = {}
+        local tMonsters = {}
+        local tPrompts = {}
+        local tPortals = {}
+        
+        for i, obj in ipairs(Workspace:GetDescendants()) do
+            if isMonster(obj) then 
+                table.insert(tMonsters, obj)
+            elseif isCollectible(obj) then 
+                table.insert(tShards, obj)
+            elseif isPortal(obj) then 
+                table.insert(tPortals, obj)
+            elseif obj:IsA("ProximityPrompt") then 
+                table.insert(tPrompts, obj) 
+            end
+            
+            if i % 300 == 0 then 
+                task.wait() 
+            end 
+        end
+        
+        Cache.Monsters = tMonsters 
+        Cache.Shards = tShards 
+        Cache.Prompts = tPrompts 
+        Cache.Portals = tPortals
+    end
+end)
+
+-- ==========================================
+-- 5. GOD FARM & TELEPORTS TAB
+-- ==========================================
+local FarmBox = Tabs.Main:AddLeftGroupbox("Titan Farming")
+
+FarmBox:AddButton({
+    Text = "Auto-Complete Level",
+    Tooltip = "Automatically collects all shards safely, then scans the map and teleports you into the exit portal.",
+    Func = function()
+        task.spawn(function()
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            
+            Library:Notify("Auto-Complete: Grabbing shards smoothly...", 1)
+            
+            for i, shard in ipairs(Cache.Shards) do
+                fireTouch(hrp, shard)
+                C.TouchedShards[shard] = true
+                
+                if i % 25 == 0 then 
+                    task.wait() 
+                end 
+            end
+            
+            Library:Notify("Scanning for portal...", 1)
+            local targetPortal = nil
+            
+            for i = 1, 30 do 
+                if #Cache.Portals > 0 then 
+                    targetPortal = Cache.Portals[1] 
+                    break 
+                end 
+                task.wait(0.1) 
+            end
+            
+            if targetPortal then
+                local pos = getSafePos(targetPortal)
+                if pos then
+                    hrp.CFrame = CFrame.new(pos)
+                    
+                    if targetPortal:IsA("BasePart") and targetPortal:FindFirstChildOfClass("TouchTransmitter") then
+                        firetouchinterest(hrp, targetPortal, 0) 
+                        firetouchinterest(hrp, targetPortal, 1)
+                    else
+                        for _, v in pairs(targetPortal:GetDescendants()) do
+                            if v:IsA("BasePart") and v:FindFirstChildOfClass("TouchTransmitter") then 
+                                firetouchinterest(hrp, v, 0) 
+                                firetouchinterest(hrp, v, 1) 
+                            end
+                            if v:IsA("ProximityPrompt") then 
+                                fireproximityprompt(v) 
+                            end
+                        end
+                    end
+                    Library:Notify("Portal Entered! Level Beaten.", 3)
+                end
+            else
+                Library:Notify("Portal not found. Safe brute-force active...", 3)
+                local count = 0
+                
+                for _, obj in pairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") and obj:FindFirstChildOfClass("TouchTransmitter") and not isCollectible(obj) and not isMonster(obj) and not obj:IsDescendantOf(player.Character) then
+                        firetouchinterest(hrp, obj, 0) 
+                        firetouchinterest(hrp, obj, 1) 
+                        count = count + 1 
+                        
+                        if count % 15 == 0 then 
+                            task.wait() 
+                        end 
+                    elseif obj:IsA("ProximityPrompt") then 
+                        fireproximityprompt(obj) 
+                    end
+                end
+            end
+        end)
+    end
+})
+
+FarmBox:AddButton({
+    Text = "Fast Collect All (Walk To Win)",
+    Tooltip = "Expands every shard in the map to the size of a mountain. Simply take 1 step to collect them all instantly.",
+    Func = function()
+        task.spawn(function()
+            local count = 0
+            for i, shard in ipairs(Cache.Shards) do
+                if shard:IsA("BasePart") then 
+                    shard.Size = Vector3.new(2000, 2000, 2000) 
+                    shard.Transparency = 1 
+                    shard.CanCollide = false 
+                    count = count + 1 
+                elseif shard:IsA("Model") and shard.PrimaryPart then 
+                    shard.PrimaryPart.Size = Vector3.new(2000, 2000, 2000) 
+                    shard.PrimaryPart.Transparency = 1 
+                    shard.PrimaryPart.CanCollide = false 
+                    count = count + 1 
+                end
+                
+                if i % 100 == 0 then 
+                    task.wait() 
+                end 
+            end
+            Library:Notify("Ready! " .. count .. " shards expanded. Walk 1 step.", 4)
+        end)
+    end
+})
+
+FarmBox:AddInput('CustomAmountInput', {
+    Default = '5',
+    Numeric = true,
+    Finished = false,
+    Text = 'Amount of Shards to collect:',
+    Tooltip = 'Type the exact amount of shards you want to collect.',
+    Placeholder = 'e.g. 5'
+}):OnChanged(function(Value)
+    C.CustomShardAmount = tonumber(Value) or 5
+end)
+
+FarmBox:AddButton({ 
+    Text = "Collect Custom Amount", 
+    Tooltip = "Grabs exactly the number of shards you typed above using safe server logic.",
+    Func = function() 
+        task.spawn(function()
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
+            if not hrp then return end 
+            
+            local rawValue = Library.Options.CustomAmountInput.Value
+            local amountToCollect = tonumber(rawValue) or C.CustomShardAmount
+            
+            if not amountToCollect or amountToCollect <= 0 then 
+                Library:Notify("Please enter a valid number!", 3) 
+                return 
+            end
+            
+            Library:Notify("Grabbing " .. amountToCollect .. " shards...", 2)
+
+            local count = 0 
+            for _, shard in ipairs(Cache.Shards) do 
+                if count >= amountToCollect then 
+                    break 
+                end
+                
+                if shard and shard.Parent and not C.TouchedShards[shard] then
+                    fireTouch(hrp, shard)
+                    fireTouch(hrp, shard) 
+                    
+                    C.TouchedShards[shard] = true
+                    count = count + 1 
+                    task.wait(0.05) 
+                end
+            end 
+            Library:Notify("Success: " .. count .. " shards collected!", 4) 
+        end)
+    end 
+})
+
+local TpBox = Tabs.Main:AddRightGroupbox("Map Teleports")
+
+TpBox:AddButton({ 
+    Text = "TP To Next Portal / Exit", 
+    Tooltip = "Scans the entire map for the level exit/portal and instantly teleports you inside it.",
+    Func = function() 
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
+        if not hrp then return end 
+        
+        if #Cache.Portals > 0 then 
+            local pos = getSafePos(Cache.Portals[1]) 
+            if pos then 
+                hrp.CFrame = CFrame.new(pos) 
+                Library:Notify("Teleported to Portal!", 3) 
+                return 
+            end 
+        end
+        
+        for _, prompt in ipairs(Workspace:GetDescendants()) do
+            if prompt:IsA("ProximityPrompt") and not prompt:IsDescendantOf(player.Character) then
+                local pos = getSafePos(prompt.Parent)
+                if pos then 
+                    hrp.CFrame = CFrame.new(pos) 
+                    Library:Notify("Teleported to Hidden Prompt!", 3) 
+                    return 
+                end
+            end
+        end
+
+        Library:Notify("Portal not found! Scan failed.", 3) 
+    end 
+})
+
+-- ==========================================
+-- 6. SURVIVAL TAB
+-- ==========================================
+local SurvBox = Tabs.Monsters:AddLeftGroupbox("True Defense Hacks")
+
+SurvBox:AddToggle("AutoEvade", { 
+    Text = "Auto-Evade (Panic TP)", 
+    Tooltip = "Automatically teleports you away if ANY killer or entity gets too close.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.AutoEvade = Value 
+end)
+
+SurvBox:AddSlider("EvadeTrigger", { 
+    Text = "Evade Trigger Distance", 
+    Tooltip = "How close (in studs) can the monster get before you teleport away?",
+    Default = 30, 
+    Min = 10, 
+    Max = 150, 
+    Rounding = 0 
+}):OnChanged(function(Value) 
+    C.EvadeTrigger = Value 
+end)
+
+SurvBox:AddSlider("EvadeHeight", { 
+    Text = "Evade Teleport Height", 
+    Tooltip = "How far up (in studs) should you be teleported when evading?",
+    Default = 100, 
+    Min = 20, 
+    Max = 500, 
+    Rounding = 0 
+}):OnChanged(function(Value) 
+    C.EvadeHeight = Value 
+end)
+
+SurvBox:AddToggle("MicroHitbox", { 
+    Text = "Micro Hitbox", 
+    Tooltip = "Shrinks your character's physical hitbox to the size of an ant.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.MicroHitbox = Value 
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
+    if hrp then 
+        if Value then 
+            hrp.Size = Vector3.new(0.05, 0.05, 0.05) 
+        else 
+            hrp.Size = Vector3.new(2, 2, 1) 
+        end 
+    end 
+end)
+
+SurvBox:AddToggle("FreezeMonsters", { 
+    Text = "Freeze Monsters Locally", 
+    Tooltip = "Anchors every single body part of the monster and sets their walkspeed to 0.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.FreezeMonsters = Value 
+    
+    if not Value then
+        for _, m in ipairs(Cache.Monsters) do
+            if m then
+                local mHum = m:FindFirstChildOfClass("Humanoid")
+                if mHum then mHum.WalkSpeed = 16 end
+                
+                for _, part in ipairs(m:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Anchored = false
+                    end
+                end
+                
+                if m:IsA("BasePart") then
+                    m.Anchored = false
+                end
+            end
+        end
+    end
+end)
+
+local CamBox = Tabs.Monsters:AddRightGroupbox("Camera Options")
+CamBox:AddToggle("TopDownCam", { 
+    Text = "Top-Down View", 
+    Tooltip = "Forces your camera to stare straight down at your character from the sky.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.TopDownCam = Value 
+    if not Value then 
+        camera.CameraType = Enum.CameraType.Custom 
+    end 
+end)
+
+CamBox:AddToggle("UnlockCam", { 
+    Text = "Unlock Camera (3rd Person)", 
+    Tooltip = "Breaks first-person locks and allows infinite zoom out.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.UnlockCam = Value 
+end)
+
+-- ==========================================
+-- 7. MOVEMENT TAB
+-- ==========================================
+local MoveBox = Tabs.Movement:AddLeftGroupbox("Movement Hacks")
+
+local originalWalkSpeed = 16
+MoveBox:AddToggle("SpeedEnabled", { 
+    Text = "Enable Speed Boost", 
+    Tooltip = "Overrides your walking speed using the KillerHub Multiplier.", 
+    Default = false 
+}):OnChanged(function(Value) 
+    Library:Notify("Speed Boost " .. (Value and "ON" or "OFF"), 1.5)
+    C.SpeedEnabled = Value 
+    if not Value then 
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid") 
+        if hum then 
+            hum.WalkSpeed = originalWalkSpeed 
+        end 
+    end 
+end)
+
+MoveBox:AddSlider("SpeedMultiplier", { 
+    Text = "Speed Multiplier", 
+    Tooltip = "Adjust how fast you run.", 
+    Default = 1.5, 
+    Min = 1.0, 
+    Max = 10.0, 
+    Rounding = 1 
+}):OnChanged(function(Value) 
+    C.SpeedMulti = Value 
+end)
+
+MoveBox:AddToggle("CFrameWalk", { 
+    Text = "Enable CFrame Walk", 
+    Tooltip = "Completely ignores the game's physics and speed locks. Pushes you mathematically forward.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.CFrameWalk = Value 
+end)
+
+MoveBox:AddSlider("CFrameSpeed", { 
+    Text = "CFrame Speed", 
+    Tooltip = "Adjust how fast you move while CFrame Walk is active.",
+    Default = 40, 
+    Min = 16, 
+    Max = 150, 
+    Rounding = 0 
+}):OnChanged(function(Value) 
+    C.CFrameSpeed = Value 
+end)
+
+MoveBox:AddToggle("NoClip", { 
+    Text = "Enable NoClip", 
+    Tooltip = "Removes collision so you can walk straight through any wall.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.NoClip = Value 
+end)
+
+local FlyBox = Tabs.Movement:AddRightGroupbox("Ultra Fly System")
+
+local FlyDown = nil
+local FlyUp = nil
+local FLYING = false
+
+FlyBox:AddToggle("FlyMode", { 
+    Text = "Enable Fly Mode", 
+    Tooltip = "Stable flight mechanism controlled by WASD.", 
+    Default = false 
+}):OnChanged(function(Value) 
+    Library:Notify("Fly " .. (Value and "ON" or "OFF"), 1.5) 
+    C.Fly = Value 
+    
+    if C.Fly then 
+        local LP = Players.LocalPlayer 
+        
+        repeat 
+            task.wait() 
+        until LP and LP.Character and LP.Character:WaitForChild("HumanoidRootPart") 
+        
+        FLYING = true 
+        local T = LP.Character.HumanoidRootPart 
+        
+        local BG = Instance.new('BodyGyro', T) 
+        BG.P = 9e4 
+        BG.MaxTorque = Vector3.new(9e9, 9e9, 9e9) 
+        BG.CFrame = T.CFrame 
+        
+        local BV = Instance.new('BodyVelocity', T) 
+        BV.Velocity = Vector3.new(0, 0, 0) 
+        BV.MaxForce = Vector3.new(9e9, 9e9, 9e9) 
+        
+        local md = {F=0, B=0, L=0, R=0} 
+        
+        task.spawn(function() 
+            while FLYING and player.Character and player.Character:FindFirstChild("HumanoidRootPart") do 
+                task.wait() 
+                local camFrame = Workspace.CurrentCamera.CoordinateFrame 
+                
+                if md.F + md.B ~= 0 or md.L + md.R ~= 0 then 
+                    BV.Velocity = ((camFrame.LookVector * (md.F + md.B)) + (camFrame.RightVector * (md.L + md.R))) * (C.FlySpeed * 50) 
+                else 
+                    BV.Velocity = Vector3.new(0, 0, 0) 
+                end 
+                
+                BG.CFrame = camFrame 
+            end 
+            
+            if BG then 
+                BG:Destroy() 
+            end 
+            
+            if BV then 
+                BV:Destroy() 
+            end 
+        end) 
+        
+        FlyDown = UserInputService.InputBegan:Connect(function(input, gp) 
+            if not gp then 
+                local K = input.KeyCode 
+                if K == Enum.KeyCode.W then 
+                    md.F = 1 
+                elseif K == Enum.KeyCode.S then 
+                    md.B = -1 
+                elseif K == Enum.KeyCode.A then 
+                    md.L = -1 
+                elseif K == Enum.KeyCode.D then 
+                    md.R = 1 
+                end 
+            end 
+        end) 
+        
+        FlyUp = UserInputService.InputEnded:Connect(function(input, gp) 
+            if not gp then 
+                local K = input.KeyCode 
+                if K == Enum.KeyCode.W then 
+                    md.F = 0 
+                elseif K == Enum.KeyCode.S then 
+                    md.B = 0 
+                elseif K == Enum.KeyCode.A then 
+                    md.L = 0 
+                elseif K == Enum.KeyCode.D then 
+                    md.R = 0 
+                end 
+            end 
+        end) 
+    else 
+        FLYING = false 
+        if FlyDown then 
+            FlyDown:Disconnect() 
+        end 
+        if FlyUp then 
+            FlyUp:Disconnect() 
+        end 
+    end 
+end)
+
+FlyBox:AddSlider("FlySpeed", { 
+    Text = "Fly Speed", 
+    Tooltip = "Adjust how fast you fly.",
+    Default = 1, 
+    Min = 0.1, 
+    Max = 100, 
+    Rounding = 1 
+}):OnChanged(function(Value) 
+    C.FlySpeed = Value 
+end)
+
+local OpMoveBox = Tabs.Movement:AddRightGroupbox("OP Abilities")
+OpMoveBox:AddToggle("InfJump", { 
+    Text = "Infinite Jump", 
+    Tooltip = "Allows you to jump endlessly in mid-air.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.InfJump = Value 
+end)
+
+OpMoveBox:AddToggle("AirWalk", { 
+    Text = "AirWalk", 
+    Tooltip = "Spawns an invisible solid platform directly under your feet.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.AirWalk = Value 
+end)
+
+UserInputService.JumpRequest:Connect(function() 
+    if C.InfJump and player.Character then 
+        local hum = player.Character:FindFirstChildOfClass("Humanoid") 
+        if hum then 
+            hum:ChangeState(Enum.HumanoidStateType.Jumping) 
+        end 
+    end 
+end)
+
+local AirPlatform = Instance.new("Part", Workspace) 
+AirPlatform.Size = Vector3.new(10, 1, 10) 
+AirPlatform.Anchored = true 
+AirPlatform.CanCollide = true 
+AirPlatform.Transparency = 0.5 
+AirPlatform.Color = Color3.fromRGB(0, 255, 255) 
+AirPlatform.Material = Enum.Material.Neon 
+AirPlatform.Name = "HuntedAirWalk"
+
+-- ==========================================
+-- 8. VISUALS TAB
+-- ==========================================
+local VisBox = Tabs.Visuals:AddLeftGroupbox("WallHacks")
+
+VisBox:AddToggle("XRay", { 
+    Text = "X-Ray Maze", 
+    Tooltip = "Turns every wall in the maze transparent so you can see the whole map.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.XRay = Value 
+    Library:Notify(Value and "Applying X-Ray..." or "Removing X-Ray...", 3)
+    task.spawn(function()
+        for i, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and not v:IsDescendantOf(player.Character) and not isMonster(v) and not isCollectible(v) and v.Name ~= "HuntedAirWalk" and v.Name ~= "BreadcrumbMarker" then
+                if Value then 
+                    if v.Transparency < 0.1 then 
+                        v.Transparency = 0.85 
+                        v.Material = Enum.Material.ForceField 
+                    end
+                else 
+                    if v.Material == Enum.Material.ForceField then 
+                        v.Transparency = 0 
+                        v.Material = Enum.Material.Plastic 
+                    end 
+                end
+                
+                if i % 300 == 0 then 
+                    task.wait() 
+                end
+            end
+        end
+    end)
+end)
+
+VisBox:AddToggle("MonsterESP", { 
+    Text = "Killer ESP (Tracers & Box)", 
+    Tooltip = "Draws a box and a line connecting you to the Killer. Visible through walls.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.MonsterESP = Value 
+    if not Value then 
+        for _, v in pairs(Workspace:GetDescendants()) do 
+            if v.Name == "ESP_M_Box" or v.Name == "ESP_M_Line" then 
+                v:Destroy() 
+            end 
+        end 
+    end 
+end)
+
+VisBox:AddToggle("ShardESP", { 
+    Text = "Shard ESP (Tracers & Box)", 
+    Tooltip = "Draws a box and a line connecting you to all shards. Visible through walls.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.ShardESP = Value 
+    if not Value then 
+        for _, v in pairs(Workspace:GetDescendants()) do 
+            if v.Name == "ESP_S_Box" or v.Name == "ESP_S_Line" then 
+                v:Destroy() 
+            end 
+        end 
+    end 
+end)
+
+local LightBox = Tabs.Visuals:AddRightGroupbox("Custom Lighting Effects")
+
+LightBox:AddToggle("FullBright", { 
+    Text = "Forced FullBright & No Fog", 
+    Tooltip = "Destroys all map fog, atmosphere effects, and forces max brightness.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.FullBright = Value 
+    if not Value then
+        restoreLighting()
+    end
+end)
+
+LightBox:AddToggle("BloodMoon", { 
+    Text = "Blood Moon Lighting", 
+    Tooltip = "Overrides the ambient lighting to a creepy dark red color.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.BloodMoon = Value 
+    if not Value then
+        restoreLighting()
+    end
+end)
+
+LightBox:AddToggle("DiscoLight", { 
+    Text = "Disco Lighting", 
+    Tooltip = "Flashing rainbow colors across the entire map.",
+    Default = false 
+}):OnChanged(function(Value) 
+    C.DiscoLight = Value
+    if not Value then
+        restoreLighting()
+    end
+end)
+
+-- ==========================================
+-- 9. PLAYERS TAB
+-- ==========================================
+local PlayerTpBox = Tabs.Players:AddLeftGroupbox("Teleport")
+local function getPlayerList() 
+    local list = {} 
+    for _, p in pairs(Players:GetPlayers()) do 
+        if p ~= player then 
+            table.insert(list, p.Name) 
+        end 
+    end 
+    if #list == 0 then 
+        table.insert(list, "No other players") 
+    end 
+    return list 
+end
+
+local PlayerDropdown = PlayerTpBox:AddDropdown("SelectedPlayer", { 
+    Values = getPlayerList(), 
+    Default = 1, 
+    Multi = false, 
+    Text = "Select Player",
+    Tooltip = "Choose a player from the server to teleport to."
+})
+
+PlayerTpBox:AddButton({ 
+    Text = "Refresh", 
+    Tooltip = "Refreshes the player list.",
+    Func = function() 
+        PlayerDropdown:SetValues(getPlayerList()) 
+    end 
+})
+
+PlayerTpBox:AddButton({ 
+    Text = "Teleport", 
+    Tooltip = "Teleports you directly above the selected player.",
+    Func = function() 
+        local tName = Library.Options.SelectedPlayer.Value 
+        if tName == "No other players" then return end 
+        local tPlayer = Players:FindFirstChild(tName) 
+        
+        if tPlayer and tPlayer.Character and tPlayer.Character:FindFirstChild("HumanoidRootPart") then 
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
+            if hrp then 
+                hrp.CFrame = tPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0, 3, 0) 
+            end 
+        end 
+    end 
+})
+
+-- ==========================================
+-- ENGINE CORE
+-- ==========================================
+local function applyLineESP(obj, name, color)
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local targetPart = obj
+    if obj:IsA("Model") then
+        targetPart = obj.PrimaryPart or obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChildWhichIsA("BasePart")
+    end
+    
+    if not targetPart or not targetPart:IsA("BasePart") then 
+        return 
+    end
+
+    local boxName = name .. "_Box"
+    local bgui = targetPart:FindFirstChild(boxName)
+    
+    if not bgui then
+        bgui = Instance.new("BillboardGui") 
+        bgui.Name = boxName 
+        bgui.Adornee = targetPart 
+        bgui.Size = UDim2.new(4, 0, 4, 0) 
+        bgui.AlwaysOnTop = true 
+        
+        local frame = Instance.new("Frame", bgui) 
+        frame.Size = UDim2.new(1, 0, 1, 0) 
+        frame.BackgroundTransparency = 0.5 
+        frame.BackgroundColor3 = color 
+        frame.BorderSizePixel = 2 
+        frame.BorderColor3 = Color3.new(0, 0, 0) 
+        bgui.Parent = targetPart
+    end
+
+    local lineName = name .. "_Line"
+    local line = targetPart:FindFirstChild(lineName)
+    
+    if not line then
+        line = Instance.new("LineHandleAdornment")
+        line.Name = lineName
+        line.Adornee = targetPart
+        line.AlwaysOnTop = true 
+        line.ZIndex = 5
+        line.Thickness = 3
+        line.Color3 = color
+        line.Parent = targetPart
+    end
+    
+    local targetPos = hrp.Position - Vector3.new(0, 3, 0)
+    local localPos = targetPart.CFrame:PointToObjectSpace(targetPos)
+    line.CFrame = CFrame.lookAt(Vector3.zero, localPos)
+    line.Length = localPos.Magnitude
+end
+
+local lastTick = 0
+local lastEvade = 0
+
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if C.FullBright then 
+            Lighting.Ambient = Color3.fromRGB(255, 255, 255) 
+            Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
+            Lighting.ColorShift_Bottom = Color3.fromRGB(255, 255, 255) 
+            Lighting.ColorShift_Top = Color3.fromRGB(255, 255, 255)
+            Lighting.Brightness = 3 
+            Lighting.FogEnd = 900000 
+            Lighting.FogStart = 900000 
+            Lighting.GlobalShadows = false 
+            Lighting.ClockTime = 14
+            
+            for _, v in pairs(Lighting:GetDescendants()) do
+                if v:IsA("Atmosphere") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
+                    v.Enabled = false
+                end
+            end
+        end
+
+        if C.BloodMoon then
+            Lighting.Ambient = Color3.fromRGB(200, 0, 0)
+            Lighting.OutdoorAmbient = Color3.fromRGB(150, 0, 0)
+            Lighting.ColorShift_Bottom = Color3.fromRGB(255, 0, 0)
+            Lighting.ColorShift_Top = Color3.fromRGB(255, 0, 0)
+        elseif C.DiscoLight then
+            local rainbow = Color3.fromHSV(tick() % 5 / 5, 1, 1)
+            Lighting.Ambient = rainbow
+            Lighting.OutdoorAmbient = rainbow
+            Lighting.ColorShift_Bottom = rainbow
+            Lighting.ColorShift_Top = rainbow
+        end
+        
+        if C.UnlockCam then 
+            player.CameraMaxZoomDistance = 100000 
+            player.CameraMinZoomDistance = 0.5 
+            player.CameraMode = Enum.CameraMode.Classic 
+        end
+        
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        if C.TopDownCam then 
+            camera.CameraType = Enum.CameraType.Scriptable 
+            camera.CFrame = CFrame.new(hrp.Position + Vector3.new(0, 120, 0), hrp.Position) 
+        end
+
+        if C.CFrameWalk and not C.Fly then
+            local moveDir = Vector3.new(0, 0, 0)
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+            
+            moveDir = Vector3.new(moveDir.X, 0, moveDir.Z)
+            
+            if moveDir.Magnitude > 0 then
+                moveDir = moveDir.Unit
+                hrp.CFrame = hrp.CFrame + (moveDir * (C.CFrameSpeed / 60))
+            end
+        end
+    end)
+end)
+
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        if tick() - lastTick < 0.1 then return end 
+        lastTick = tick()
+        
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+        
+        if C.AirWalk and hrp then 
+            AirPlatform.CFrame = CFrame.new(hrp.Position - Vector3.new(0, 3.5, 0)) 
+        else 
+            AirPlatform.CFrame = CFrame.new(0, 99999, 0) 
+        end
+        
+        if not hrp or not hum then return end
+        
+        if C.SpeedEnabled then 
+            hum.WalkSpeed = 16 * C.SpeedMulti 
+        end
+
+        if C.AutoEvade and tick() - lastEvade > 1 then
+            for _, m in ipairs(Cache.Monsters) do
+                if m and m.Parent then
+                    local mHrp = m.PrimaryPart or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Torso") or m:FindFirstChildWhichIsA("BasePart")
+                    if mHrp then
+                        local distance = (hrp.Position - mHrp.Position).Magnitude
+                        if distance < C.EvadeTrigger then
+                            hrp.Velocity = Vector3.new(0, 0, 0)
+                            hrp.CFrame = hrp.CFrame + Vector3.new(0, C.EvadeHeight, 0) 
+                            
+                            Library:Notify("EVADED KILLER! Jumping " .. C.EvadeHeight .. " studs up!", 3)
+                            lastEvade = tick() 
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        
+        if C.FreezeMonsters then
+            for _, m in ipairs(Cache.Monsters) do
+                if m then
+                    local mHum = m:FindFirstChildOfClass("Humanoid")
+                    if mHum then mHum.WalkSpeed = 0 end
+                    
+                    for _, part in ipairs(m:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.Anchored = true
+                        end
+                    end
+                    if m:IsA("BasePart") then
+                        m.Anchored = true
+                    end
+                end
+            end
+        end
+
+        if C.MonsterESP then 
+            for _, obj in ipairs(Cache.Monsters) do 
+                applyLineESP(obj, "ESP_M", Color3.fromRGB(255, 0, 0)) 
+            end 
+        end
+        
+        if C.ShardESP then 
+            for _, obj in ipairs(Cache.Shards) do 
+                applyLineESP(obj, "ESP_S", Color3.fromRGB(0, 255, 255)) 
+            end 
+        end
+    end)
+end)
+
+RunService.Stepped:Connect(function() 
+    pcall(function() 
+        if C.NoClip and player.Character then 
+            for _, part in pairs(player.Character:GetDescendants()) do 
+                if part:IsA("BasePart") and part.CanCollide then 
+                    part.CanCollide = false 
+                end 
+            end 
+        end 
+    end) 
+end)
+
+-- ==========================================
+-- 10. INITIALIZATION
+-- ==========================================
+ThemeManager:SetLibrary(Library) 
+ThemeManager:SetFolder("HuntedHub") 
+ThemeManager:ApplyToTab(Tabs.Settings)
+
+local SettingsBox = Tabs.Settings:AddLeftGroupbox("Menu")
+SettingsBox:AddButton("Unload Hub", function() 
+    Library:Unload() 
+end)
+SettingsBox:AddLabel("Toggle Menu"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+Library.ToggleKeybind = Library.Options.MenuKeybind
+
+Library:Load()
