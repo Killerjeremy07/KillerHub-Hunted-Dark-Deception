@@ -91,7 +91,7 @@ local Tabs = {
     Settings = Window:AddTab("Settings", "settings") 
 }
 
-Library:Notify("HuntedHub V42 Loaded! Clean UI & Crash Fixed.", 4)
+Library:Notify("HuntedHub V42 Loaded! Lag-Free Bring Logic Active.", 4)
 
 local C = {
     CustomShardAmount = 5,
@@ -227,20 +227,6 @@ local function getSafePos(obj)
     return nil
 end
 
-local function fireTouch(hrp, obj)
-    if not obj or not obj.Parent then return end
-    
-    local part = obj
-    if obj:IsA("Model") then 
-        part = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart") 
-    end
-    
-    if part and part:IsA("BasePart") then 
-        firetouchinterest(hrp, part, 0) 
-        firetouchinterest(hrp, part, 1) 
-    end
-end
-
 task.spawn(function()
     while task.wait(1.0) do
         local tShards = {}
@@ -278,101 +264,71 @@ local FarmBox = Tabs.Main:AddLeftGroupbox("Titan Farming")
 
 FarmBox:AddButton({
     Text = "Auto-Complete Level",
-    Tooltip = "Automatically collects all shards safely, then scans the map and teleports you into the exit portal.",
+    Tooltip = "Instantly pulls all shards into your character, then pulls the portal to you.",
     Func = function()
         task.spawn(function()
             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
             if not hrp then return end
+
+            Library:Notify("Auto-Complete: Pulling all shards to you...", 1)
             
-            Library:Notify("Auto-Complete: Grabbing shards smoothly...", 1)
-            
-            for i, shard in ipairs(Cache.Shards) do
-                fireTouch(hrp, shard)
-                C.TouchedShards[shard] = true
-                
-                if i % 25 == 0 then 
-                    task.wait() 
-                end 
+            for _, shard in ipairs(Cache.Shards) do
+                if shard and shard.Parent then
+                    if shard:IsA("BasePart") then 
+                        shard.CFrame = hrp.CFrame
+                    elseif shard:IsA("Model") and shard.PrimaryPart then 
+                        shard:PivotTo(hrp.CFrame)
+                    end
+                end
             end
             
-            Library:Notify("Scanning for portal...", 1)
-            local targetPortal = nil
+            Library:Notify("All shards collected! Pulling exit portal...", 3)
+            task.wait(1.5) -- Wait for server to process the shards
             
-            for i = 1, 30 do 
-                if #Cache.Portals > 0 then 
-                    targetPortal = Cache.Portals[1] 
-                    break 
-                end 
-                task.wait(0.1) 
+            local targetPortal = nil
+            if #Cache.Portals > 0 then 
+                targetPortal = Cache.Portals[1] 
             end
             
             if targetPortal then
-                local pos = getSafePos(targetPortal)
-                if pos then
-                    hrp.CFrame = CFrame.new(pos)
-                    
-                    if targetPortal:IsA("BasePart") and targetPortal:FindFirstChildOfClass("TouchTransmitter") then
-                        firetouchinterest(hrp, targetPortal, 0) 
-                        firetouchinterest(hrp, targetPortal, 1)
-                    else
-                        for _, v in pairs(targetPortal:GetDescendants()) do
-                            if v:IsA("BasePart") and v:FindFirstChildOfClass("TouchTransmitter") then 
-                                firetouchinterest(hrp, v, 0) 
-                                firetouchinterest(hrp, v, 1) 
-                            end
-                            if v:IsA("ProximityPrompt") then 
-                                fireproximityprompt(v) 
-                            end
-                        end
-                    end
-                    Library:Notify("Portal Entered! Level Beaten.", 3)
+                if targetPortal:IsA("BasePart") then
+                    targetPortal.CFrame = hrp.CFrame
+                elseif targetPortal:IsA("Model") and targetPortal.PrimaryPart then
+                    targetPortal:PivotTo(hrp.CFrame)
                 end
+                Library:Notify("Portal reached! Level Beaten.", 4)
             else
-                Library:Notify("Portal not found. Safe brute-force active...", 3)
-                local count = 0
-                
-                for _, obj in pairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") and obj:FindFirstChildOfClass("TouchTransmitter") and not isCollectible(obj) and not isMonster(obj) and not obj:IsDescendantOf(player.Character) then
-                        firetouchinterest(hrp, obj, 0) 
-                        firetouchinterest(hrp, obj, 1) 
-                        count = count + 1 
-                        
-                        if count % 15 == 0 then 
-                            task.wait() 
-                        end 
-                    elseif obj:IsA("ProximityPrompt") then 
-                        fireproximityprompt(obj) 
-                    end
-                end
+                Library:Notify("Portal not found yet. The exit might not be open.", 3)
             end
         end)
     end
 })
 
 FarmBox:AddButton({
-    Text = "Fast Collect All (Walk To Win)",
-    Tooltip = "Expands every shard in the map to the size of a mountain. Simply take 1 step to collect them all instantly.",
+    Text = "Fast Collect All (Bring To Player)",
+    Tooltip = "Pulls every shard on the map directly into your character. 0% Lag.",
     Func = function()
         task.spawn(function()
+            local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+
             local count = 0
             for i, shard in ipairs(Cache.Shards) do
-                if shard:IsA("BasePart") then 
-                    shard.Size = Vector3.new(2000, 2000, 2000) 
-                    shard.Transparency = 1 
-                    shard.CanCollide = false 
-                    count = count + 1 
-                elseif shard:IsA("Model") and shard.PrimaryPart then 
-                    shard.PrimaryPart.Size = Vector3.new(2000, 2000, 2000) 
-                    shard.PrimaryPart.Transparency = 1 
-                    shard.PrimaryPart.CanCollide = false 
-                    count = count + 1 
+                if shard and shard.Parent then
+                    if shard:IsA("BasePart") then 
+                        shard.CFrame = hrp.CFrame
+                        count = count + 1 
+                    elseif shard:IsA("Model") and shard.PrimaryPart then 
+                        shard:PivotTo(hrp.CFrame)
+                        count = count + 1 
+                    end
                 end
                 
                 if i % 100 == 0 then 
                     task.wait() 
                 end 
             end
-            Library:Notify("Ready! " .. count .. " shards expanded. Walk 1 step.", 4)
+            Library:Notify("Success! Pulled " .. count .. " shards into you.", 4)
         end)
     end
 })
@@ -390,7 +346,7 @@ end)
 
 FarmBox:AddButton({ 
     Text = "Collect Custom Amount", 
-    Tooltip = "Grabs exactly the number of shards you typed above using safe server logic.",
+    Tooltip = "Pulls exactly the amount of shards you typed into your character.",
     Func = function() 
         task.spawn(function()
             local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart") 
@@ -404,24 +360,25 @@ FarmBox:AddButton({
                 return 
             end
             
-            Library:Notify("Grabbing " .. amountToCollect .. " shards...", 2)
-
             local count = 0 
+            
             for _, shard in ipairs(Cache.Shards) do 
                 if count >= amountToCollect then 
                     break 
                 end
                 
-                if shard and shard.Parent and not C.TouchedShards[shard] then
-                    fireTouch(hrp, shard)
-                    fireTouch(hrp, shard) 
-                    
-                    C.TouchedShards[shard] = true
-                    count = count + 1 
-                    task.wait(0.05) 
+                if shard and shard.Parent then
+                    if shard:IsA("BasePart") then 
+                        shard.CFrame = hrp.CFrame
+                        count = count + 1 
+                    elseif shard:IsA("Model") and shard.PrimaryPart then 
+                        shard:PivotTo(hrp.CFrame)
+                        count = count + 1 
+                    end
                 end
             end 
-            Library:Notify("Success: " .. count .. " shards collected!", 4) 
+            
+            Library:Notify("Pulled " .. count .. " shards safely to you!", 4) 
         end)
     end 
 })
